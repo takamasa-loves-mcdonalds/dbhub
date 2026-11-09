@@ -92,4 +92,4 @@ jobs:
         run: pnpm install
 
       - name: Run integration tests
-        run: pnpm exec vitest run --project integration src/connectors/__tests__/verify-set-config-quoted.integration.test.ts
+        run: pnpm exec vitest run --project integration src/connectors/__tests__/verify-quoted-escape-hatch.integration.test.ts
