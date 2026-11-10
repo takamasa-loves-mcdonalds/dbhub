@@ -1581,6 +1581,55 @@ source = "test_db"
 max_rows = ${value}
 `)).toThrow('invalid max_rows');
     });
+
+    it.each([
+      ['custom tool', 'name = "test_tool"\ndescription = "Test tool"\nstatement = "SELECT 1"'],
+      ['execute_sql', 'name = "execute_sql"'],
+    ])('should accept max_calls_per_minute for %s', (_label, toolFields) => {
+      const result = loadToml(`
+[[sources]]
+id = "test_db"
+dsn = "postgres://user:pass@localhost:5432/testdb"
+
+[[tools]]
+${toolFields}
+source = "test_db"
+max_calls_per_minute = 60
+`);
+
+      expect(result?.tools![0].max_calls_per_minute).toBe(60);
+    });
+
+    it.each([
+      ['zero', '0'],
+      ['negative', '-1'],
+      ['fractional', '1.5'],
+      ['string', '"60"'],
+    ])('should reject a %s max_calls_per_minute', (_label, value) => {
+      expect(() => loadToml(`
+[[sources]]
+id = "test_db"
+dsn = "postgres://user:pass@localhost:5432/testdb"
+
+[[tools]]
+name = "execute_sql"
+source = "test_db"
+max_calls_per_minute = ${value}
+`)).toThrow('invalid max_calls_per_minute');
+    });
+
+    it('should reject max_calls_per_minute for search_objects', () => {
+      expect(() => loadToml(`
+[[sources]]
+id = "test_db"
+dsn = "postgres://user:pass@localhost:5432/testdb"
+
+[[tools]]
+name = "search_objects"
+source = "test_db"
+max_calls_per_minute = 60
+`)).toThrow("tool 'search_objects' cannot have readonly, max_rows or max_calls_per_minute fields");
+    });
   });
 
   // Both are built-in tools other than execute_sql, so they share one
@@ -1615,7 +1664,7 @@ ${extra}
 
     it(`should reject ${toolName} with readonly or max_rows`, () => {
       expect(() => loadToml(toolToml('readonly = true'))).toThrow(
-        `tool '${toolName}' cannot have readonly or max_rows fields`
+        `tool '${toolName}' cannot have readonly, max_rows or max_calls_per_minute fields`
       );
     });
 

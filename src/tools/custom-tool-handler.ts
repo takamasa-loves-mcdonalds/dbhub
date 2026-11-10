@@ -18,6 +18,7 @@ import {
   tryClassifyConnectionError,
 } from "../utils/tool-handler-helpers.js";
 import { policyFromReadonly, isReadOnlyPolicy, sqlVerdict } from "../utils/sql-access-policy.js";
+import { takeCallSlot, callRateLimitMessage } from "../utils/call-rate-limit.js";
 
 /**
  * Build a Zod schema from parameter definitions
@@ -206,6 +207,16 @@ export function createCustomToolHandler(toolConfig: ToolConfig) {
         errorMessage = createReadonlyViolationMessage(toolConfig.name, toolConfig.source, connector.id);
         success = false;
         return createToolErrorResponse(errorMessage, "READONLY_VIOLATION");
+      }
+
+      // Per-tool call rate limit, counted only for calls that reach the database
+      if (toolConfig.max_calls_per_minute !== undefined) {
+        const waitMs = takeCallSlot(toolConfig.name, toolConfig.max_calls_per_minute);
+        if (waitMs !== undefined) {
+          errorMessage = callRateLimitMessage(toolConfig.name, toolConfig.max_calls_per_minute, waitMs);
+          success = false;
+          return createToolErrorResponse(errorMessage, "RATE_LIMITED");
+        }
       }
 
       // 6. Map parameters to array format for SQL execution

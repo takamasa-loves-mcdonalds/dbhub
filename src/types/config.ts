@@ -98,6 +98,7 @@ export interface ExecuteSqlToolConfig {
   source: string;
   readonly?: boolean;
   max_rows?: number;
+  max_calls_per_minute?: number; // Calls allowed per sliding minute, per process
 }
 
 /**
@@ -135,6 +136,7 @@ export interface CustomToolConfig {
   parameters?: ParameterConfig[];
   readonly?: boolean;
   max_rows?: number;
+  max_calls_per_minute?: number; // Calls allowed per sliding minute, per process
 }
 
 /**

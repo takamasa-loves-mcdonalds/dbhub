@@ -209,10 +209,15 @@ function validateToolsConfig(
         );
       }
 
-      // Only execute_sql can have readonly and max_rows
-      if (!isExecuteSql && (tool.readonly !== undefined || tool.max_rows !== undefined)) {
+      // Only execute_sql can have readonly, max_rows and max_calls_per_minute
+      if (
+        !isExecuteSql &&
+        (tool.readonly !== undefined ||
+          tool.max_rows !== undefined ||
+          tool.max_calls_per_minute !== undefined)
+      ) {
         throw new Error(
-          `Configuration file ${configPath}: tool '${tool.name}' cannot have readonly or max_rows fields ` +
+          `Configuration file ${configPath}: tool '${tool.name}' cannot have readonly, max_rows or max_calls_per_minute fields ` +
             `(these are only valid for ${BUILTIN_TOOL_EXECUTE_SQL} tool)`
         );
       }
@@ -230,6 +235,15 @@ function validateToolsConfig(
       if (typeof tool.max_rows !== "number" || tool.max_rows <= 0) {
         throw new Error(
           `Configuration file ${configPath}: tool '${tool.name}' has invalid max_rows. Must be a positive integer.`
+        );
+      }
+    }
+
+    // Validate max_calls_per_minute if provided
+    if (tool.max_calls_per_minute !== undefined) {
+      if (!Number.isInteger(tool.max_calls_per_minute) || tool.max_calls_per_minute <= 0) {
+        throw new Error(
+          `Configuration file ${configPath}: tool '${tool.name}' has invalid max_calls_per_minute. Must be a positive integer.`
         );
       }
     }

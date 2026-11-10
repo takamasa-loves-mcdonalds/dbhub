@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createExecuteSqlToolHandler } from '../execute-sql.js';
 import { ConnectorManager } from '../../connectors/manager.js';
 import { getToolRegistry } from '../registry.js';
+import { resetCallRateLimits } from '../../utils/call-rate-limit.js';
 import type { Connector, ConnectorType, SQLResult } from '../../connectors/interface.js';
 
 // Mock dependencies
@@ -218,6 +219,38 @@ describe('execute-sql tool', () => {
       const result = await handler({ sql }, null);
 
       expect(parseToolResponse(result).code).toBe('READONLY_VIOLATION');
+    });
+  });
+
+  describe('call rate limit', () => {
+    beforeEach(() => {
+      resetCallRateLimits();
+      mockGetToolRegistry.mockReturnValue({
+        getBuiltinToolConfig: vi.fn().mockReturnValue({ readonly: true, max_calls_per_minute: 2 }),
+      } as any);
+      vi.mocked(mockConnector.executeSQL).mockResolvedValue({ resultSets: [{ rows: [], rowCount: 0 }] });
+    });
+
+    it('should refuse calls over the limit without reaching the database', async () => {
+      const handler = createExecuteSqlToolHandler('test_source');
+      await handler({ sql: 'SELECT 1' }, null);
+      await handler({ sql: 'SELECT 2' }, null);
+      const result = await handler({ sql: 'SELECT 3' }, null);
+
+      expect(result.isError).toBe(true);
+      const payload = parseToolResponse(result);
+      expect(payload.code).toBe('RATE_LIMITED');
+      expect(payload.error).toMatch(/^2 calls per minute reached for execute_sql_test_source; retry in \d+s$/);
+      expect(mockConnector.executeSQL).toHaveBeenCalledTimes(2);
+    });
+
+    it('should not count calls refused by read-only mode', async () => {
+      const handler = createExecuteSqlToolHandler('test_source');
+      await handler({ sql: 'DROP TABLE users' }, null);
+      await handler({ sql: 'DROP TABLE users' }, null);
+      const result = await handler({ sql: 'SELECT 1' }, null);
+
+      expect(parseToolResponse(result).success).toBe(true);
     });
   });
 

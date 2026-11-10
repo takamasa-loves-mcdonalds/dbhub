@@ -791,6 +791,25 @@ Tools define MCP tools (like `execute_sql`) with specific execution settings. To
   See [Execute SQL documentation](/tools/execute-sql#row-limits) for more details.
 </ParamField>
 
+### max_calls_per_minute
+
+<ParamField path="max_calls_per_minute" type="integer">
+  Maximum number of calls to this tool in any one-minute window. Calls over the limit return a `RATE_LIMITED` error that says how many seconds to wait, without reaching the database. Available on `execute_sql` and custom tools.
+
+  ```toml
+  [[tools]]
+  name = "execute_sql"
+  source = "production"
+  max_calls_per_minute = 60
+  ```
+
+  The count is kept per DBHub process. Over stdio, each client session starts its own process, so the limit applies per session.
+
+  <Note>
+  This is a **tool-level** setting, not a source-level setting. Configure it in the `[[tools]]` section, not in `[[sources]]`.
+  </Note>
+</ParamField>
+
 ### statement
 
 <ParamField path="statement" type="string">
@@ -1023,3 +1042,4 @@ default = 10
 | `parameters` | array | ❌ | Parameter definitions for custom tools |
 | `readonly` | boolean | ❌ | Read-only mode (default: `false`) |
 | `max_rows` | number | ❌ | Max rows limit (default: unlimited) |
+| `max_calls_per_minute` | integer | ❌ | Calls per minute per process (default: unlimited) |

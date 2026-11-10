@@ -3,6 +3,7 @@ import { ConnectorManager } from "../connectors/manager.js";
 import { createToolSuccessResponse, createToolErrorResponse } from "../utils/response-formatter.js";
 import { allowedKeywords } from "../utils/allowed-keywords.js";
 import { policyFromReadonly, isReadOnlyPolicy, sqlVerdict } from "../utils/sql-access-policy.js";
+import { takeCallSlot, callRateLimitMessage } from "../utils/call-rate-limit.js";
 import { getToolRegistry } from "./registry.js";
 import { BUILTIN_TOOL_EXECUTE_SQL } from "./builtin-tools.js";
 import {
@@ -32,6 +33,7 @@ export function createExecuteSqlToolHandler(sourceId?: string) {
     const { sql } = args as { sql: string };
     const startTime = Date.now();
     const effectiveSourceId = getEffectiveSourceId(sourceId);
+    const toolName = effectiveSourceId === "default" ? "execute_sql" : `execute_sql_${effectiveSourceId}`;
     let success = true;
     let errorMessage: string | undefined;
     let result: any;
@@ -56,6 +58,17 @@ export function createExecuteSqlToolHandler(sourceId?: string) {
         errorMessage = `Read-only mode is enabled. Only the following SQL operations are allowed: ${allowedKeywords[connector.id]?.join(", ") || "none"}`;
         success = false;
         return createToolErrorResponse(errorMessage, "READONLY_VIOLATION");
+      }
+
+      // Per-tool call rate limit, counted only for calls that reach the database
+      const callLimit = toolConfig?.max_calls_per_minute;
+      if (callLimit !== undefined) {
+        const waitMs = takeCallSlot(toolName, callLimit);
+        if (waitMs !== undefined) {
+          errorMessage = callRateLimitMessage(toolName, callLimit, waitMs);
+          success = false;
+          return createToolErrorResponse(errorMessage, "RATE_LIMITED");
+        }
       }
 
       // Execute the SQL (single or multiple statements) if validation passed.
@@ -87,7 +100,7 @@ export function createExecuteSqlToolHandler(sourceId?: string) {
       trackToolRequest(
         {
           sourceId: effectiveSourceId,
-          toolName: effectiveSourceId === "default" ? "execute_sql" : `execute_sql_${effectiveSourceId}`,
+          toolName,
           sql,
         },
         startTime,
